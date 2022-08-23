@@ -1,169 +1,98 @@
-use anyhow::{anyhow, Context, Result};
-use std::{fs::File, io::Write};
+#[macro_use]
+extern crate rocket;
 
-use image::GenericImageView;
+use std::error::Error;
 
-const DIE_MADE: &str = r#"Hinter eines Baumes Rinde
-wohnt die Made mit dem Kinde.
-Sie ist Witwe, denn der Gatte,
-den sie hatte, fiel vom Blatte.
-Diente so auf diese Weise
-einer Ameise als Speise.
- 
-Eines Morgens sprach die Made:
-"Liebes Kind, ich sehe grade,
-drüben gibt es frischen Kohl,
-den ich hol'. So leb denn wohl.
-Halt! Noch eins, denk, was geschah,
-geh nicht aus, denk an Papa!"
- 
-Also sprach sie und entwich. —
-Made junior aber schlich
-aus der Wohnung, das war schlecht,
-denn schon kam ein Specht
-und verschlang die kleine fade
-Made ohne Gnade. — Schade.
- 
-Hinter eines Baumes Rinde
-ruft die Made nach dem Kinde
-"#;
+use flume::{Receiver, Sender};
+use printer::PoetryPrinter;
+use rocket::{form::Form, tokio::spawn, Build, Rocket, State};
+use rocket_dyn_templates::{context, Template};
 
-const MAX_WIDTH: u32 = 384;
-const MAX_HEIGHT: u32 = 192;
+mod poem_generator;
+mod printer;
+mod training_data;
 
-const FOOTER_ROWS: usize = 4;
-
-const PRINTER_PATH: &'static str = "/tmp/DEVTERM_PRINTER_IN";
-const UNICODE_MODE: &'static str = "\x1b\x21\x01";
-
-struct PoetrySlam {
-    printer: File,
-    header: Vec<u8>,
-    footer: Vec<u8>,
+#[derive(FromForm)]
+struct PoemGenerationForm<'r> {
+    training_data: &'r str,
+    name: &'r str,
+    print_and_hide: bool,
 }
 
-fn generate_footer() -> Vec<u8> {
-    let footer = [
-        [0xff, 0x0].repeat((MAX_WIDTH as usize) / 8 / 2 * 8),
-        [0x0, 0xff].repeat((MAX_WIDTH as usize) / 8 / 2 * 8),
-    ];
-
-    let mut buf = vec![
-        0x1d,
-        0x76,
-        0x30,
-        0x0,
-        (MAX_WIDTH / 8) as u8,
-        0,
-        (FOOTER_ROWS * 8) as u8,
-        0,
-    ];
-    for i in 0..FOOTER_ROWS {
-        buf.extend_from_slice(&footer[i % 2]);
-    }
-    buf
+#[get("/")]
+fn index() -> Template {
+    Template::render(
+        "index",
+        context! {
+            name: "",
+            training_data: training_data::DEFAULT_TRAINING_DATA,
+        },
+    )
 }
 
-impl PoetrySlam {
-    pub fn new() -> Result<PoetrySlam> {
-        let printer = File::options()
-            .append(true)
-            .open(PRINTER_PATH)
-            .with_context(|| format!("Failed to open printer path {}", PRINTER_PATH))?;
+#[post("/", data = "<poem_generation>")]
+async fn generate(
+    poem_generation: Form<PoemGenerationForm<'_>>,
+    poem_tx: &State<Option<Sender<(String, String)>>>,
+) -> Result<Template, String> {
+    // hmm. this generates a 200 in case of an error :S
+    let poem = poem_generator::generate(poem_generation.training_data)
+        .await
+        .map_err(|e| e.to_string())?;
 
-        let img = include_bytes!("poetryslam.png");
-        let img = image::load_from_memory(img)?;
-
-        let dimensions = img.dimensions();
-        if dimensions.0 % 8 > 0 {
-            return Err(anyhow!(
-                "Image must have a width that is divisible by 8. Width: {}",
-                dimensions.0,
-            ));
+    let poem = if poem_generation.print_and_hide {
+        if let Some(poem_tx) = poem_tx.inner() {
+            poem_tx
+                .send((poem_generation.name.to_string(), poem))
+                .map_err(|e| e.to_string())?;
         }
-        if dimensions.0 > MAX_WIDTH {
-            return Err(anyhow!(
-                "Image too wide. Max: {}. Width: {}",
-                MAX_WIDTH,
-                dimensions.0,
-            ));
-        }
+        None
+    } else {
+        Some(poem)
+    };
 
-        if dimensions.1 > MAX_HEIGHT {
-            return Err(anyhow!(
-                "Image too high. Max: {}. Height: {}",
-                MAX_HEIGHT,
-                dimensions.1,
-            ));
-        }
-
-        // https://github.com/clockworkpi/DevTerm/blob/main/Code/thermal_printer/devterm_thermal_printer.c#L669
-        let mut converted = vec![
-            0x1d,
-            0x76,
-            0x30,
-            0x0,
-            (img.dimensions().0 / 8) as u8,
-            0,
-            (img.dimensions().1) as u8,
-            0,
-        ];
-        // convert each pixel to a bit
-        let mut shift = 7u8;
-        let mut b = 0u8;
-        for pixel in img.pixels() {
-            if pixel.2[0] == 0 {
-                b += 1 << shift;
-            }
-            if shift == 0 {
-                converted.push(b);
-                b = 0;
-                shift = 7;
-            } else {
-                shift = shift - 1;
-            }
-        }
-        Ok(PoetrySlam {
-            header: converted,
-            footer: generate_footer(),
-            printer,
-        })
-    }
-
-    fn print_poem(&mut self) -> Result<()> {
-        let poem = [
-            b"\n\n\n",
-            self.header.as_slice(),
-            b"\n\n\n",
-            UNICODE_MODE.as_bytes(),
-            DIE_MADE.as_bytes(),
-            b"\n\n\n",
-            self.footer.as_slice(),
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-            b"\n\n\n",
-        ]
-        .into_iter()
-        .fold(vec![], |mut v, s| {
-            v.extend_from_slice(s);
-            v
-        });
-        self.printer
-            .write(&poem)
-            .with_context(|| "Failed to write poem")?;
-        Ok(())
-    }
+    Ok(Template::render(
+        "index",
+        context! {
+            training_data: poem_generation.training_data,
+            name: poem_generation.name,
+            poem,
+        },
+    ))
 }
 
-fn main() -> Result<()> {
-    let mut poetry_slam = PoetrySlam::new()?;
-    poetry_slam.print_poem()?;
+fn rocket(poem_tx: Option<Sender<(String, String)>>) -> Rocket<Build> {
+    rocket::build()
+        .mount("/", routes![index, generate])
+        .manage(poem_tx)
+        .attach(Template::fairing())
+}
+
+#[rocket::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let printer = match PoetryPrinter::new() {
+        Ok(mut printer) => {
+            let (poem_tx, poem_rx): (Sender<(String, String)>, Receiver<(String, String)>) =
+                flume::unbounded();
+            let print_task = spawn(async move {
+                loop {
+                    let (name, training_data) = poem_rx.recv().unwrap();
+                    printer.print_poem(&name, &training_data).unwrap();
+                }
+            });
+            Some((poem_tx, print_task))
+        }
+        Err(e) => {
+            eprintln!("Printer init failed: {}. Skipping print.", e);
+            None
+        }
+    };
+    if let Some(printer) = printer {
+        let _ = rocket(Some(printer.0)).launch().await;
+        printer.1.abort();
+    } else {
+        let _ = rocket(None).launch().await;
+    }
 
     Ok(())
 }

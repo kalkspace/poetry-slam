@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<body>
+<style>
+  .wrapper {
+    background-color: whitesmoke;
+    list-style-type: none;
+    padding: 0;
+    border-radius: 3px;
+  }
+  .form-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: .5em;
+  }
+  .form-row > label {
+    padding: .5em 1em .5em 0;
+  }
+  .form-row > input,
+  .form-row > textarea {
+    flex: 1;
+  }
+  .form-row > input,
+  .form-row > button {
+    padding: .5em;
+  }
+  .form-row > textarea {
+    min-height: 20vh;
+  }
+  .form-row > button {
+   background: gray;
+   color: white;
+   border: 0;
+  }
+</style>
+<h1>KalkSpace Poetry Slam</h1>
+<form method="POST" action="/">
+  <ul class="wrapper">
+    <li class="form-row">
+      <label for="name">Dein Name</label>
+      <input id="training_data" name="name" value="{{ name }}">
+    </li>
+    <li class="form-row">
+      <label for="training_data">Trainingsdaten</label>
+      <textarea id="training_data" name="training_data">{{ training_data }}</textarea>
+    </li>
+    <li class="form-row">
+      <label for="training_data">Generiertes Gedicht ausdrucken statt am Bildschirm zu zeigen</label>
+      <input type="checkbox" name="print_and_hide" />
+    </li>
+    <li class="form-row">
+      <button type="submit">Submit</button>
+    </li>
+  </ul>
+</form>
+{% if poem %}
+<pre>
+{{ poem }}
+</pre>
+{% endif %}
+</body>
+</html>
