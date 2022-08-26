@@ -1,16 +1,18 @@
 #[macro_use]
 extern crate rocket;
 
+use serde::Serialize;
+
 use std::{error::Error, thread::spawn};
 
 use flume::{Receiver, Sender};
 use printer::PoetryPrinter;
 use rocket::{form::Form, Build, Rocket, State};
-use rocket_dyn_templates::{context, Template};
+use rocket_dyn_templates::Template;
 
 mod poem_generator;
 mod printer;
-mod training_data;
+mod training_sets;
 
 struct PrinterArgs {
     name: String,
@@ -28,16 +30,38 @@ struct PoemGenerationForm<'r> {
     name: &'r str,
     print_and_hide: bool,
 }
+#[derive(Serialize)]
+struct TemplateContext<'a> {
+    name: &'a str,
+    training_data: &'a str,
+    training_sets: Vec<&'a str>,
+    poem: Option<String>,
+}
+
+impl<'a> TemplateContext<'a> {
+    pub fn new(
+        poem_generation: Option<PoemGenerationForm<'a>>,
+        poem: Option<String>,
+    ) -> TemplateContext<'a> {
+        TemplateContext {
+            name: poem_generation
+                .as_ref()
+                .map_or_else(|| "", |poem_generation| poem_generation.name),
+            training_data: poem_generation
+                .as_ref()
+                .map_or_else(|| "", |poem_generation| poem_generation.training_data),
+            training_sets: training_sets::TRAINING_SETS
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            poem,
+        }
+    }
+}
 
 #[get("/")]
 fn index() -> Template {
-    Template::render(
-        "index",
-        context! {
-            name: "",
-            training_data: training_data::DEFAULT_TRAINING_DATA,
-        },
-    )
+    Template::render("index", TemplateContext::new(None, None))
 }
 
 #[post("/", data = "<poem_generation>")]
@@ -66,17 +90,18 @@ async fn generate(
 
     Ok(Template::render(
         "index",
-        context! {
-            training_data: poem_generation.training_data,
-            name: poem_generation.name,
-            poem,
-        },
+        TemplateContext::new(Some(poem_generation.into_inner()), poem),
     ))
+}
+
+#[get("/training-set/<set>")]
+fn get_training_set(set: &str) -> Option<&str> {
+    training_sets::TRAINING_SETS.get(set).cloned()
 }
 
 fn rocket(poem_tx: Option<Sender<PrinterArgs>>) -> Rocket<Build> {
     rocket::build()
-        .mount("/", routes![index, generate])
+        .mount("/", routes![index, generate, get_training_set])
         .manage(poem_tx)
         .attach(Template::fairing())
 }

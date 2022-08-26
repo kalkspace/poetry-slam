@@ -1376,9 +1376,11 @@ dependencies = [
  "anyhow",
  "flume",
  "image",
+ "lazy_static",
  "reqwest",
  "rocket",
  "rocket_dyn_templates",
+ "serde",
 ]
 
 [[package]]

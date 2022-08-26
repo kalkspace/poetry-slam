@@ -30,18 +30,32 @@
   .form-row > button {
    background: gray;
    color: white;
-   border: 0;
   }
 </style>
+<script>
+function clicki(evt) {
+  evt.preventDefault();
+  fetch("/training-set/" + encodeURIComponent(evt.target.textContent)).then(response => {
+    if (response.status >= 200 && response.status < 400) {
+      response.text().then(text => document.querySelector("#training_data").value += text)
+    }
+  });
+}
+</script>
 <h1>KalkSpace Poetry Slam</h1>
 <form method="POST" action="/">
   <ul class="wrapper">
     <li class="form-row">
       <label for="name">Dein Name</label>
-      <input id="training_data" name="name" value="{{ name }}">
+      <input id="name" name="name" value="{{ name }}">
     </li>
     <li class="form-row">
       <label for="training_data">Trainingsdaten</label>
+      <div>
+      {% for set in training_sets %}
+        <div><button onclick="clicki(event)">{{ set }}</button></div>
+      {% endfor %}
+      </div>
       <textarea id="training_data" name="training_data">{{ training_data }}</textarea>
     </li>
     <li class="form-row">
