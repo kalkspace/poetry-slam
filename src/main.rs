@@ -3,11 +3,16 @@ extern crate rocket;
 
 use serde::Serialize;
 
-use std::{error::Error, thread::spawn};
+use std::{
+    collections::BTreeSet,
+    error::Error,
+    path::{Path, PathBuf},
+    thread::spawn,
+};
 
 use flume::{Receiver, Sender};
 use printer::PoetryPrinter;
-use rocket::{form::Form, Build, Rocket, State};
+use rocket::{form::Form, fs::NamedFile, Build, Rocket, State};
 use rocket_dyn_templates::Template;
 
 mod poem_generator;
@@ -34,7 +39,7 @@ struct PoemGenerationForm<'r> {
 struct TemplateContext<'a> {
     name: &'a str,
     training_data: &'a str,
-    training_sets: Vec<&'a str>,
+    training_sets: &'a BTreeSet<&'a str>,
     poem: Option<String>,
 }
 
@@ -50,10 +55,7 @@ impl<'a> TemplateContext<'a> {
             training_data: poem_generation
                 .as_ref()
                 .map_or_else(|| "", |poem_generation| poem_generation.training_data),
-            training_sets: training_sets::TRAINING_SETS
-                .keys()
-                .cloned()
-                .collect::<Vec<_>>(),
+            training_sets: &training_sets::TRAINING_SETS,
             poem,
         }
     }
@@ -94,14 +96,14 @@ async fn generate(
     ))
 }
 
-#[get("/training-set/<set>")]
-fn get_training_set(set: &str) -> Option<&str> {
-    training_sets::TRAINING_SETS.get(set).cloned()
+#[get("/assets/<asset..>")]
+async fn get_asset(asset: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(Path::new("assets/").join(asset)).await.ok()
 }
 
 fn rocket(poem_tx: Option<Sender<PrinterArgs>>) -> Rocket<Build> {
     rocket::build()
-        .mount("/", routes![index, generate, get_training_set])
+        .mount("/", routes![index, generate, get_asset])
         .manage(poem_tx)
         .attach(Template::fairing())
 }

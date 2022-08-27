@@ -1,76 +1,66 @@
 <!doctype html>
-<html>
-<body>
-<style>
-  .wrapper {
-    background-color: whitesmoke;
-    list-style-type: none;
-    padding: 0;
-    border-radius: 3px;
-  }
-  .form-row {
-    display: flex;
-    justify-content: flex-end;
-    padding: .5em;
-  }
-  .form-row > label {
-    padding: .5em 1em .5em 0;
-  }
-  .form-row > input,
-  .form-row > textarea {
-    flex: 1;
-  }
-  .form-row > input,
-  .form-row > button {
-    padding: .5em;
-  }
-  .form-row > textarea {
-    min-height: 20vh;
-  }
-  .form-row > button {
-   background: gray;
-   color: white;
-  }
-</style>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KalkSpace Poetry Slam</title>
+    <link href="/assets/css/bootstrap.min.css" rel="stylesheet">
+    <script src="/assets/js/bootstrap.bundle.min.js"></script>
+  </head>
+<body class="bg-light">
 <script>
 function clicki(evt) {
   evt.preventDefault();
-  fetch("/training-set/" + encodeURIComponent(evt.target.textContent)).then(response => {
+  fetch("/assets/data/" + encodeURIComponent(evt.target.textContent) + ".txt").then(response => {
     if (response.status >= 200 && response.status < 400) {
       response.text().then(text => document.querySelector("#training_data").value += text)
     }
   });
 }
 </script>
-<h1>KalkSpace Poetry Slam</h1>
-<form method="POST" action="/">
-  <ul class="wrapper">
-    <li class="form-row">
-      <label for="name">Dein Name</label>
-      <input id="name" name="name" value="{{ name }}">
-    </li>
-    <li class="form-row">
-      <label for="training_data">Trainingsdaten</label>
-      <div>
-      {% for set in training_sets %}
-        <div><button onclick="clicki(event)">{{ set }}</button></div>
-      {% endfor %}
+<div class="container">
+  <main>
+    <div class="py-5 text-center">
+      <h2>KalkSpace Poetry Slam</h2>
+    </div>
+  </main>
+  <div class="row g-5">
+    <form method="POST" action="/">
+      <div class="mb-3">
+          <label class="form-label" for="name">Dein Name</label>
+          <input class="form-control" id="name" name="name" value="{{ name }}">
       </div>
-      <textarea id="training_data" name="training_data">{{ training_data }}</textarea>
-    </li>
-    <li class="form-row">
-      <label for="training_data">Generiertes Gedicht ausdrucken statt am Bildschirm zu zeigen</label>
-      <input type="checkbox" name="print_and_hide" />
-    </li>
-    <li class="form-row">
-      <button type="submit">Submit</button>
-    </li>
-  </ul>
-</form>
-{% if poem %}
-<pre>
-{{ poem }}
-</pre>
-{% endif %}
+      <div class="mb-3">
+          <label class="form-label" for="training_data">Trainingsdaten</label>
+          <div id="help" class="form-text">Button klicken, um Beispielsdaten hinzuzufügen</div>
+          <div class="mb-3">
+
+            {% for set in training_sets %}
+              <button class="btn btn-primary mt-2" onclick="clicki(event)">{{ set }}</button>
+            {% endfor %}
+          </div>
+          <textarea rows="20" class="form-control" id="training_data" name="training_data">{{ training_data }}</textarea>
+      </div>
+      <div class="mb-3">
+          <label class="form-label" for="training_data">Generiertes Gedicht ausdrucken statt am Bildschirm zu zeigen</label>
+          <input class="form-check-input" type="checkbox" name="print_and_hide" />
+      </div>
+      <div class="mb-3">
+        <button type="submit" class="btn btn-primary">Gedicht generieren</button>
+      </div>
+    </form>
+    {% if poem %}
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Gedicht</h5>
+        <p style="white-space: pre-wrap;">{{ poem }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<div class="container-fluid">
+
+</div>
 </body>
 </html>
