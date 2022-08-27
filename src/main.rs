@@ -30,10 +30,16 @@ struct Print {
 }
 
 #[derive(FromForm)]
+struct CheatModeForm<'r> {
+    name: &'r str,
+    poem: &'r str,
+}
+
+#[derive(FromForm)]
 struct PoemGenerationForm<'r> {
     training_data: &'r str,
     name: &'r str,
-    print_and_hide: bool,
+    hardmode: bool,
 }
 #[derive(Serialize)]
 struct TemplateContext<'a> {
@@ -71,29 +77,49 @@ async fn generate(
     poem_generation: Form<PoemGenerationForm<'_>>,
     poem_tx: &State<Option<Sender<PrinterArgs>>>,
 ) -> Result<Template, String> {
-    // hmm. this generates a 200 in case of an error :S
-    let poem = poem_generator::generate(poem_generation.training_data)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let poem = if poem_generation.print_and_hide {
-        if let Some(poem_tx) = poem_tx.inner() {
-            poem_tx
-                .send(PrinterArgs {
-                    name: poem_generation.name.to_string(),
-                    poem,
-                })
-                .map_err(|e| e.to_string())?;
-        }
+    let poem = if poem_generation.training_data.trim().len() == 0 {
         None
     } else {
-        Some(poem)
+        // hmm. this generates a 200 in case of an error :S
+        let poem = poem_generator::generate(poem_generation.training_data)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if poem_generation.hardmode {
+            if let Some(poem_tx) = poem_tx.inner() {
+                poem_tx
+                    .send(PrinterArgs {
+                        name: poem_generation.name.to_string(),
+                        poem,
+                    })
+                    .map_err(|e| e.to_string())?;
+            }
+            None
+        } else {
+            Some(poem)
+        }
     };
 
     Ok(Template::render(
         "index",
         TemplateContext::new(Some(poem_generation.into_inner()), poem),
     ))
+}
+
+#[post("/print", data = "<cheatmode>")]
+async fn print(
+    cheatmode: Form<CheatModeForm<'_>>,
+    poem_tx: &State<Option<Sender<PrinterArgs>>>,
+) -> Result<Template, String> {
+    if let Some(poem_tx) = poem_tx.inner() {
+        poem_tx
+            .send(PrinterArgs {
+                name: cheatmode.name.to_string(),
+                poem: cheatmode.poem.to_string(),
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(Template::render("index", TemplateContext::new(None, None)))
 }
 
 #[get("/assets/<asset..>")]
@@ -103,7 +129,7 @@ async fn get_asset(asset: PathBuf) -> Option<NamedFile> {
 
 fn rocket(poem_tx: Option<Sender<PrinterArgs>>) -> Rocket<Build> {
     rocket::build()
-        .mount("/", routes![index, generate, get_asset])
+        .mount("/", routes![index, generate, print, get_asset])
         .manage(poem_tx)
         .attach(Template::fairing())
 }

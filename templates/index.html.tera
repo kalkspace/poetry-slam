@@ -25,38 +25,50 @@ function clicki(evt) {
     </div>
   </main>
   <div class="row g-5">
-    <form method="POST" action="/">
-      <div class="mb-3">
+    <div class="col">
+      <h5>Einstellungen</h5>
+
+      <form method="POST" action="/">
+        <div class="mb-3">
           <label class="form-label" for="name">Dein Name</label>
           <input class="form-control" id="name" name="name" value="{{ name }}">
-      </div>
-      <div class="mb-3">
+        </div>
+        <div class="mb-3">
           <label class="form-label" for="training_data">Trainingsdaten</label>
           <div id="help" class="form-text">Button klicken, um Beispielsdaten hinzuzufügen</div>
           <div class="mb-3">
-
+            
             {% for set in training_sets %}
-              <button class="btn btn-primary mt-2" onclick="clicki(event)">{{ set }}</button>
+            <button class="btn btn-secondary mt-2" onclick="clicki(event)">{{ set }}</button>
             {% endfor %}
           </div>
           <textarea rows="20" class="form-control" id="training_data" name="training_data">{{ training_data }}</textarea>
-      </div>
-      <div class="mb-3">
-          <label class="form-label" for="training_data">Generiertes Gedicht ausdrucken statt am Bildschirm zu zeigen</label>
-          <input class="form-check-input" type="checkbox" name="print_and_hide" />
-      </div>
-      <div class="mb-3">
-        <button type="submit" class="btn btn-primary">Gedicht generieren</button>
-      </div>
-    </form>
-    {% if poem %}
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">Gedicht</h5>
-        <p style="white-space: pre-wrap;">{{ poem }}</p>
-      </div>
+        </div>
+        <div class="mb-3">
+          <button type="submit" class="btn btn-primary">Generieren und anzeigen</button>
+          <button type="submit" class="btn btn-primary" name="hardmode" value="true">Generieren und direkt drucken (Hardmode)</button>
+        </div>
+      </form>
     </div>
-    {% endif %}
+    <div class="col">
+      <h5>Gedicht</h5>
+      <div class="card mb-3">
+        <div class="card-body">
+          {% if poem %}
+          <p style="white-space: pre-wrap;">{{ poem }}</p>
+          {% else %}
+          &quot;Generieren&quot; drücken, um ein Gedicht zu generieren
+          {% endif %}
+        </div>
+      </div>
+      {% if poem %}
+      <form method="POST" action="/print">
+        <input type="hidden" name="name" value="{{ name }}">
+        <input type="hidden" name="poem" value="{{ poem }}">
+        <button type="submit" class="btn btn-primary">Dieses Gedicht ausdrucken (Cheatmode)</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 <div class="container-fluid">
