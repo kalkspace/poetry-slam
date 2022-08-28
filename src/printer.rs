@@ -105,7 +105,7 @@ impl PoetryPrinter {
         })
     }
 
-    pub fn print_poem(&mut self, name: &str, poem: &str) -> Result<()> {
+    pub fn print_poem(&mut self, name: &str, poem: &str, cheat_mode: bool) -> Result<()> {
         let poem = [
             b"\n\n\n",
             self.header.as_slice(),
@@ -113,6 +113,12 @@ impl PoetryPrinter {
             UNICODE_MODE.as_bytes(),
             format!("Gedicht von {}", name).as_bytes(),
             b"\n\n\n",
+            if cheat_mode {
+                "#### CHEAT MODE ####\n\n"
+            } else {
+                ""
+            }
+            .as_bytes(),
             poem.as_bytes(),
             b"\n\n\n",
             self.footer.as_slice(),

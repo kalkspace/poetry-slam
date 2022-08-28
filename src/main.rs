@@ -22,6 +22,7 @@ mod training_sets;
 struct PrinterArgs {
     name: String,
     poem: String,
+    cheat_mode: bool,
 }
 
 struct Print {
@@ -91,6 +92,7 @@ async fn generate(
                     .send(PrinterArgs {
                         name: poem_generation.name.to_string(),
                         poem,
+                        cheat_mode: false,
                     })
                     .map_err(|e| e.to_string())?;
             }
@@ -115,7 +117,8 @@ async fn print(
         poem_tx
             .send(PrinterArgs {
                 name: cheatmode.name.to_string(),
-                poem: cheatmode.poem.to_string(),
+                poem: cheatmode.poem.to_string().replace("\r\n", "\n"),
+                cheat_mode: true,
             })
             .map_err(|e| e.to_string())?;
     }
@@ -148,7 +151,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         return;
                     }
                 };
-                if let Err(e) = printer.print_poem(&args.name, &args.poem) {
+                if let Err(e) = printer.print_poem(&args.name, &args.poem, args.cheat_mode) {
                     println!("Printing failed : {}", e);
                 }
             });
